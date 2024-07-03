@@ -7,14 +7,12 @@ from .fast_kan_conv import FastKANConv1DLayer, FastKANConv2DLayer, FastKANConv3D
 from .kabn_conv import KABNConv1DLayer, KABNConv2DLayer, KABNConv3DLayer
 from .kacn_conv import KACNConv1DLayer, KACNConv2DLayer, KACNConv3DLayer
 from .kagn_bottleneck_conv import BottleNeckKAGNConv1DLayer, BottleNeckKAGNConv2DLayer, BottleNeckKAGNConv3DLayer
-from .kagn_bottleneck_conv import MoEBottleNeckKAGNConv1DLayer, MoEBottleNeckKAGNConv2DLayer, \
-    MoEBottleNeckKAGNConv3DLayer
+from .kagn_bottleneck_conv import MoEBottleNeckKAGNConv1DLayer, MoEBottleNeckKAGNConv2DLayer, MoEBottleNeckKAGNConv3DLayer
 from .kagn_conv import KAGNConv1DLayer, KAGNConv2DLayer, KAGNConv3DLayer
 from .kajn_conv import KAJNConv1DLayer, KAJNConv2DLayer, KAJNConv3DLayer
 from .kaln_conv import KALNConv1DLayer, KALNConv2DLayer, KALNConv3DLayer
 from .kan_conv import KANConv1DLayer, KANConv2DLayer, KANConv3DLayer
-from .relukan_bottleneck_conv import BottleNeckReLUKANConv1DLayer, BottleNeckReLUKANConv2DLayer, \
-    BottleNeckReLUKANConv3DLayer
+from .relukan_bottleneck_conv import BottleNeckReLUKANConv1DLayer, BottleNeckReLUKANConv2DLayer, BottleNeckReLUKANConv3DLayer
 from .relukan_conv import ReLUKANConv1DLayer, ReLUKANConv2DLayer, ReLUKANConv3DLayer
 from .wav_kan import WavKANConv1DLayer, WavKANConv2DLayer, WavKANConv3DLayer
 
@@ -29,19 +27,52 @@ class SelfKANtentionND(nn.Module):
 
         kernel_size = kankwargs.pop('kernel_size')
 
-        if conv_kan_layer in [FastKANConv1DLayer, KANConv1DLayer, KALNConv1DLayer, KACNConv1DLayer, KAGNConv1DLayer,
-                              WavKANConv1DLayer, KAJNConv1DLayer, KABNConv1DLayer, BottleNeckKAGNConv1DLayer,
-                              MoEBottleNeckKAGNConv1DLayer, ReLUKANConv1DLayer, BottleNeckReLUKANConv1DLayer]:
+        if conv_kan_layer in [
+            FastKANConv1DLayer,
+            KANConv1DLayer,
+            KALNConv1DLayer,
+            KACNConv1DLayer,
+            KAGNConv1DLayer,
+            WavKANConv1DLayer,
+            KAJNConv1DLayer,
+            KABNConv1DLayer,
+            BottleNeckKAGNConv1DLayer,
+            MoEBottleNeckKAGNConv1DLayer,
+            ReLUKANConv1DLayer,
+            BottleNeckReLUKANConv1DLayer,
+        ]:
             self.ndim = 1
             self.norm_layer = nn.BatchNorm1d(input_dim)
-        elif conv_kan_layer in [FastKANConv2DLayer, KANConv2DLayer, KALNConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer,
-                                WavKANConv2DLayer, KAJNConv2DLayer, KABNConv2DLayer, BottleNeckKAGNConv2DLayer,
-                                MoEBottleNeckKAGNConv2DLayer, ReLUKANConv2DLayer, BottleNeckReLUKANConv2DLayer]:
+        elif conv_kan_layer in [
+            FastKANConv2DLayer,
+            KANConv2DLayer,
+            KALNConv2DLayer,
+            KACNConv2DLayer,
+            KAGNConv2DLayer,
+            WavKANConv2DLayer,
+            KAJNConv2DLayer,
+            KABNConv2DLayer,
+            BottleNeckKAGNConv2DLayer,
+            MoEBottleNeckKAGNConv2DLayer,
+            ReLUKANConv2DLayer,
+            BottleNeckReLUKANConv2DLayer,
+        ]:
             self.ndim = 2
             self.norm_layer = nn.BatchNorm2d(input_dim)
-        elif conv_kan_layer in [FastKANConv3DLayer, KANConv3DLayer, KALNConv3DLayer, KACNConv3DLayer, KAGNConv3DLayer,
-                                WavKANConv3DLayer, KAJNConv3DLayer, KABNConv3DLayer, BottleNeckKAGNConv3DLayer,
-                                MoEBottleNeckKAGNConv3DLayer, ReLUKANConv3DLayer, BottleNeckReLUKANConv3DLayer]:
+        elif conv_kan_layer in [
+            FastKANConv3DLayer,
+            KANConv3DLayer,
+            KALNConv3DLayer,
+            KACNConv3DLayer,
+            KAGNConv3DLayer,
+            WavKANConv3DLayer,
+            KAJNConv3DLayer,
+            KABNConv3DLayer,
+            BottleNeckKAGNConv3DLayer,
+            MoEBottleNeckKAGNConv3DLayer,
+            ReLUKANConv3DLayer,
+            BottleNeckReLUKANConv3DLayer,
+        ]:
             self.ndim = 3
             self.norm_layer = nn.BatchNorm3d(input_dim)
         assert self.ndim is not None, "Unsupported conv kan layer"
@@ -105,147 +136,249 @@ class SelfKANtentionND(nn.Module):
 
 
 class SelfKAGNtention1D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm1d, **norm_kwargs):
-        super(SelfKAGNtention1D, self).__init__(input_dim, KAGNConv1DLayer, inner_projection=inner_projection,
-                                                kernel_size=kernel_size, degree=degree, groups=groups, padding=padding,
-                                                stride=stride, dilation=dilation, dropout=dropout,
-                                                norm_layer=norm_layer, **norm_kwargs)
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm1d, **norm_kwargs):
+        super(SelfKAGNtention1D, self).__init__(
+            input_dim,
+            KAGNConv1DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            degree=degree,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class SelfKAGNtention2D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm2d, **norm_kwargs):
-        super(SelfKAGNtention2D, self).__init__(input_dim, KAGNConv2DLayer, inner_projection=inner_projection,
-                                                kernel_size=kernel_size, degree=degree, groups=groups, padding=padding,
-                                                stride=stride, dilation=dilation, dropout=dropout,
-                                                norm_layer=norm_layer, **norm_kwargs)
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm2d, **norm_kwargs):
+        super(SelfKAGNtention2D, self).__init__(
+            input_dim,
+            KAGNConv2DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            degree=degree,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class SelfKAGNtention3D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm3d, **norm_kwargs):
-        super(SelfKAGNtention3D, self).__init__(input_dim, KAGNConv3DLayer, inner_projection=inner_projection,
-                                                kernel_size=kernel_size, degree=degree, groups=groups, padding=padding,
-                                                stride=stride, dilation=dilation, dropout=dropout,
-                                                norm_layer=norm_layer, **norm_kwargs)
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm3d, **norm_kwargs):
+        super(SelfKAGNtention3D, self).__init__(
+            input_dim,
+            KAGNConv3DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            degree=degree,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class BottleNeckSelfKAGNtention1D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm1d, **norm_kwargs):
-        super(BottleNeckSelfKAGNtention1D, self).__init__(input_dim, BottleNeckKAGNConv1DLayer,
-                                                          inner_projection=inner_projection,
-                                                          kernel_size=kernel_size, degree=degree, groups=groups,
-                                                          padding=padding,
-                                                          stride=stride, dilation=dilation, dropout=dropout,
-                                                          norm_layer=norm_layer, **norm_kwargs)
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm1d, **norm_kwargs):
+        super(BottleNeckSelfKAGNtention1D, self).__init__(
+            input_dim,
+            BottleNeckKAGNConv1DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            degree=degree,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class BottleNeckSelfKAGNtention2D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm2d, **norm_kwargs):
-        super(BottleNeckSelfKAGNtention2D, self).__init__(input_dim, BottleNeckKAGNConv2DLayer,
-                                                          inner_projection=inner_projection,
-                                                          kernel_size=kernel_size, degree=degree, groups=groups,
-                                                          padding=padding,
-                                                          stride=stride, dilation=dilation, dropout=dropout,
-                                                          norm_layer=norm_layer, **norm_kwargs)
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm2d, **norm_kwargs):
+        super(BottleNeckSelfKAGNtention2D, self).__init__(
+            input_dim,
+            BottleNeckKAGNConv2DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            degree=degree,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class BottleNeckSelfKAGNtention3D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm3d, **norm_kwargs):
-        super(BottleNeckSelfKAGNtention3D, self).__init__(input_dim, BottleNeckKAGNConv3DLayer,
-                                                          inner_projection=inner_projection,
-                                                          kernel_size=kernel_size, degree=degree, groups=groups,
-                                                          padding=padding,
-                                                          stride=stride, dilation=dilation, dropout=dropout,
-                                                          norm_layer=norm_layer, **norm_kwargs)
+    def __init__(self, input_dim, inner_projection=None, kernel_size=3, degree=3, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm3d, **norm_kwargs):
+        super(BottleNeckSelfKAGNtention3D, self).__init__(
+            input_dim,
+            BottleNeckKAGNConv3DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            degree=degree,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class SelfReLUKANtention1D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm1d, **norm_kwargs):
-        super(SelfReLUKANtention1D, self).__init__(input_dim, ReLUKANConv1DLayer, inner_projection=inner_projection,
-                                                   kernel_size=kernel_size, g=g, k=k, train_ab=train_ab, groups=groups,
-                                                   padding=padding,
-                                                   stride=stride, dilation=dilation, dropout=dropout,
-                                                   norm_layer=norm_layer, **norm_kwargs)
+    def __init__(
+        self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm1d, **norm_kwargs
+    ):
+        super(SelfReLUKANtention1D, self).__init__(
+            input_dim,
+            ReLUKANConv1DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            g=g,
+            k=k,
+            train_ab=train_ab,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class SelfReLUKANtention2D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm2d, **norm_kwargs):
-        super(SelfReLUKANtention2D, self).__init__(input_dim, ReLUKANConv2DLayer, inner_projection=inner_projection,
-                                                   kernel_size=kernel_size, g=g, k=k, train_ab=train_ab, groups=groups,
-                                                   padding=padding,
-                                                   stride=stride, dilation=dilation, dropout=dropout,
-                                                   norm_layer=norm_layer, **norm_kwargs)
+    def __init__(
+        self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm2d, **norm_kwargs
+    ):
+        super(SelfReLUKANtention2D, self).__init__(
+            input_dim,
+            ReLUKANConv2DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            g=g,
+            k=k,
+            train_ab=train_ab,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class SelfReLUKANtention3D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm3d, **norm_kwargs):
-        super(SelfReLUKANtention3D, self).__init__(input_dim, ReLUKANConv3DLayer, inner_projection=inner_projection,
-                                                   kernel_size=kernel_size, g=g, k=k, train_ab=train_ab, groups=groups,
-                                                   padding=padding,
-                                                   stride=stride, dilation=dilation, dropout=dropout,
-                                                   norm_layer=norm_layer, **norm_kwargs)
+    def __init__(
+        self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm3d, **norm_kwargs
+    ):
+        super(SelfReLUKANtention3D, self).__init__(
+            input_dim,
+            ReLUKANConv3DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            g=g,
+            k=k,
+            train_ab=train_ab,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class BottleNeckSelfReLUKANtention1D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm1d, **norm_kwargs):
-        super(BottleNeckSelfReLUKANtention1D, self).__init__(input_dim, BottleNeckReLUKANConv1DLayer,
-                                                             inner_projection=inner_projection,
-                                                             kernel_size=kernel_size, g=g, k=k, train_ab=train_ab,
-                                                             groups=groups,
-                                                             padding=padding,
-                                                             stride=stride, dilation=dilation, dropout=dropout,
-                                                             norm_layer=norm_layer, **norm_kwargs)
+    def __init__(
+        self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm1d, **norm_kwargs
+    ):
+        super(BottleNeckSelfReLUKANtention1D, self).__init__(
+            input_dim,
+            BottleNeckReLUKANConv1DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            g=g,
+            k=k,
+            train_ab=train_ab,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class BottleNeckSelfReLUKANtention2D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm2d, **norm_kwargs):
-        super(BottleNeckSelfReLUKANtention2D, self).__init__(input_dim, BottleNeckReLUKANConv2DLayer,
-                                                             inner_projection=inner_projection,
-                                                             kernel_size=kernel_size, g=g, k=k, train_ab=train_ab,
-                                                             groups=groups,
-                                                             padding=padding,
-                                                             stride=stride, dilation=dilation, dropout=dropout,
-                                                             norm_layer=norm_layer, **norm_kwargs)
+    def __init__(
+        self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm2d, **norm_kwargs
+    ):
+        super(BottleNeckSelfReLUKANtention2D, self).__init__(
+            input_dim,
+            BottleNeckReLUKANConv2DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            g=g,
+            k=k,
+            train_ab=train_ab,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class BottleNeckSelfReLUKANtention3D(SelfKANtentionND):
-    def __init__(self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1,
-                 padding=0, stride=1, dilation=1, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm3d, **norm_kwargs):
-        super(BottleNeckSelfReLUKANtention3D, self).__init__(input_dim, BottleNeckReLUKANConv2DLayer,
-                                                             inner_projection=inner_projection,
-                                                             kernel_size=kernel_size, g=g, k=k, train_ab=train_ab,
-                                                             groups=groups,
-                                                             padding=padding,
-                                                             stride=stride, dilation=dilation, dropout=dropout,
-                                                             norm_layer=norm_layer, **norm_kwargs)
+    def __init__(
+        self, input_dim, inner_projection=None, kernel_size=3, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.BatchNorm3d, **norm_kwargs
+    ):
+        super(BottleNeckSelfReLUKANtention3D, self).__init__(
+            input_dim,
+            BottleNeckReLUKANConv2DLayer,
+            inner_projection=inner_projection,
+            kernel_size=kernel_size,
+            g=g,
+            k=k,
+            train_ab=train_ab,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class KANFocalModulationND(nn.Module):
-    def __init__(self, dim, conv_kan_layer, focal_norm_layer: dict, focal_window, focal_level, focal_factor=2,
-                 use_postln_in_modulation=False, normalize_modulator=False, full_kan: bool = True,
-                 **kan_params):
+    def __init__(
+        self, dim, conv_kan_layer, focal_norm_layer: dict, focal_window, focal_level, focal_factor=2, use_postln_in_modulation=False, normalize_modulator=False, full_kan: bool = True, **kan_params
+    ):
         super().__init__()
 
         self.dim = dim
@@ -255,19 +388,52 @@ class KANFocalModulationND(nn.Module):
         self.use_postln_in_modulation = use_postln_in_modulation
         self.normalize_modulator = normalize_modulator
 
-        if conv_kan_layer in [FastKANConv1DLayer, KANConv1DLayer, KALNConv1DLayer, KACNConv1DLayer, KAGNConv1DLayer,
-                              WavKANConv1DLayer, KAJNConv1DLayer, KABNConv1DLayer, BottleNeckKAGNConv1DLayer,
-                              MoEBottleNeckKAGNConv1DLayer, ReLUKANConv1DLayer, BottleNeckReLUKANConv1DLayer]:
-            self.global_pool = nn.AdaptiveAvgPool1d((1, ))
+        if conv_kan_layer in [
+            FastKANConv1DLayer,
+            KANConv1DLayer,
+            KALNConv1DLayer,
+            KACNConv1DLayer,
+            KAGNConv1DLayer,
+            WavKANConv1DLayer,
+            KAJNConv1DLayer,
+            KABNConv1DLayer,
+            BottleNeckKAGNConv1DLayer,
+            MoEBottleNeckKAGNConv1DLayer,
+            ReLUKANConv1DLayer,
+            BottleNeckReLUKANConv1DLayer,
+        ]:
+            self.global_pool = nn.AdaptiveAvgPool1d((1,))
             self.ndim = 1
-        elif conv_kan_layer in [FastKANConv2DLayer, KANConv2DLayer, KALNConv2DLayer, KACNConv2DLayer, KAGNConv2DLayer,
-                                WavKANConv2DLayer, KAJNConv2DLayer, KABNConv2DLayer, BottleNeckKAGNConv2DLayer,
-                                MoEBottleNeckKAGNConv2DLayer, ReLUKANConv2DLayer, BottleNeckReLUKANConv2DLayer]:
+        elif conv_kan_layer in [
+            FastKANConv2DLayer,
+            KANConv2DLayer,
+            KALNConv2DLayer,
+            KACNConv2DLayer,
+            KAGNConv2DLayer,
+            WavKANConv2DLayer,
+            KAJNConv2DLayer,
+            KABNConv2DLayer,
+            BottleNeckKAGNConv2DLayer,
+            MoEBottleNeckKAGNConv2DLayer,
+            ReLUKANConv2DLayer,
+            BottleNeckReLUKANConv2DLayer,
+        ]:
             self.ndim = 2
             self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
-        elif conv_kan_layer in [FastKANConv3DLayer, KANConv3DLayer, KALNConv3DLayer, KACNConv3DLayer, KAGNConv3DLayer,
-                                WavKANConv3DLayer, KAJNConv3DLayer, KABNConv3DLayer, BottleNeckKAGNConv3DLayer,
-                                MoEBottleNeckKAGNConv3DLayer, ReLUKANConv3DLayer, BottleNeckReLUKANConv3DLayer]:
+        elif conv_kan_layer in [
+            FastKANConv3DLayer,
+            KANConv3DLayer,
+            KALNConv3DLayer,
+            KACNConv3DLayer,
+            KAGNConv3DLayer,
+            WavKANConv3DLayer,
+            KAJNConv3DLayer,
+            KABNConv3DLayer,
+            BottleNeckKAGNConv3DLayer,
+            MoEBottleNeckKAGNConv3DLayer,
+            ReLUKANConv3DLayer,
+            BottleNeckReLUKANConv3DLayer,
+        ]:
             self.global_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
             self.ndim = 3
 
@@ -291,10 +457,7 @@ class KANFocalModulationND(nn.Module):
         self.kernel_sizes = []
         for k in range(self.focal_level):
             kernel_size = self.focal_factor * k + self.focal_window
-            self.focal_layers.append(
-                conv_kan_layer(dim, dim, kernel_size, stride=1,
-                               groups=dim, padding=kernel_size // 2, **kan_params)
-            )
+            self.focal_layers.append(conv_kan_layer(dim, dim, kernel_size, stride=1, groups=dim, padding=kernel_size // 2, **kan_params))
             self.kernel_sizes.append(kernel_size)
 
         if use_postln_in_modulation:
@@ -315,9 +478,9 @@ class KANFocalModulationND(nn.Module):
         ctx_all = 0
         for l in range(self.focal_level):
             ctx = self.focal_layers[l](ctx)
-            ctx_all = ctx_all + ctx * self.gates[:, l:l + 1]
+            ctx_all = ctx_all + ctx * self.gates[:, l : l + 1]
         ctx_global = self.global_pool(ctx_all)
-        ctx_all = ctx_all + ctx_global * self.gates[:, self.focal_level:]
+        ctx_all = ctx_all + ctx_global * self.gates[:, self.focal_level :]
 
         # normalize context
         if self.normalize_modulator:
@@ -335,44 +498,101 @@ class KANFocalModulationND(nn.Module):
 
 
 class BottleNeckKAGNFocalModulation1D(KANFocalModulationND):
-    def __init__(self, input_dim, focal_window=3, focal_level=2, focal_factor=2,
-                 use_postln_in_modulation=True, normalize_modulator=True, full_kan: bool = True,
-                 degree=3, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm1d, **norm_kwargs):
+    def __init__(
+        self,
+        input_dim,
+        focal_window=3,
+        focal_level=2,
+        focal_factor=2,
+        use_postln_in_modulation=True,
+        normalize_modulator=True,
+        full_kan: bool = True,
+        degree=3,
+        dropout: float = 0.0,
+        norm_layer=nn.BatchNorm1d,
+        **norm_kwargs
+    ):
         focal_norm_layer = {'layer': norm_layer, 'params': norm_kwargs}
 
-        super(BottleNeckKAGNFocalModulation1D, self).__init__(input_dim, BottleNeckKAGNConv1DLayer, focal_norm_layer,
-                                                              focal_window, focal_level, focal_factor=focal_factor,
-                                                              use_postln_in_modulation=use_postln_in_modulation,
-                                                              normalize_modulator=normalize_modulator,
-                                                              full_kan=full_kan, degree=degree, dropout=dropout,
-                                                              norm_layer=norm_layer, **norm_kwargs)
+        super(BottleNeckKAGNFocalModulation1D, self).__init__(
+            input_dim,
+            BottleNeckKAGNConv1DLayer,
+            focal_norm_layer,
+            focal_window,
+            focal_level,
+            focal_factor=focal_factor,
+            use_postln_in_modulation=use_postln_in_modulation,
+            normalize_modulator=normalize_modulator,
+            full_kan=full_kan,
+            degree=degree,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class BottleNeckKAGNFocalModulation2D(KANFocalModulationND):
-    def __init__(self, input_dim, focal_window=3, focal_level=2, focal_factor=2,
-                 use_postln_in_modulation=True, normalize_modulator=True, full_kan: bool = True,
-                 degree=3, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm2d, **norm_kwargs):
+    def __init__(
+        self,
+        input_dim,
+        focal_window=3,
+        focal_level=2,
+        focal_factor=2,
+        use_postln_in_modulation=True,
+        normalize_modulator=True,
+        full_kan: bool = True,
+        degree=3,
+        dropout: float = 0.0,
+        norm_layer=nn.BatchNorm2d,
+        **norm_kwargs
+    ):
         focal_norm_layer = {'layer': norm_layer, 'params': norm_kwargs}
-        super(BottleNeckKAGNFocalModulation2D, self).__init__(input_dim, BottleNeckKAGNConv2DLayer, focal_norm_layer,
-                                                             focal_window, focal_level, focal_factor=focal_factor,
-                                                             use_postln_in_modulation=use_postln_in_modulation,
-                                                             normalize_modulator=normalize_modulator,
-                                                             full_kan=full_kan, degree=degree, dropout=dropout,
-                                                             norm_layer=norm_layer, **norm_kwargs)
+        super(BottleNeckKAGNFocalModulation2D, self).__init__(
+            input_dim,
+            BottleNeckKAGNConv2DLayer,
+            focal_norm_layer,
+            focal_window,
+            focal_level,
+            focal_factor=focal_factor,
+            use_postln_in_modulation=use_postln_in_modulation,
+            normalize_modulator=normalize_modulator,
+            full_kan=full_kan,
+            degree=degree,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
 
 
 class BottleNeckKAGNFocalModulation3D(KANFocalModulationND):
-    def __init__(self, input_dim, focal_window=3, focal_level=2, focal_factor=2,
-                 use_postln_in_modulation=True, normalize_modulator=True, full_kan: bool = True,
-                 degree=3, dropout: float = 0.0,
-                 norm_layer=nn.BatchNorm3d, **norm_kwargs):
+    def __init__(
+        self,
+        input_dim,
+        focal_window=3,
+        focal_level=2,
+        focal_factor=2,
+        use_postln_in_modulation=True,
+        normalize_modulator=True,
+        full_kan: bool = True,
+        degree=3,
+        dropout: float = 0.0,
+        norm_layer=nn.BatchNorm3d,
+        **norm_kwargs
+    ):
         focal_norm_layer = {'layer': norm_layer, 'params': norm_kwargs}
 
-        super(BottleNeckKAGNFocalModulation3D, self).__init__(input_dim, BottleNeckKAGNConv3DLayer, focal_norm_layer,
-                                                              focal_window, focal_level, focal_factor=focal_factor,
-                                                              use_postln_in_modulation=use_postln_in_modulation,
-                                                              normalize_modulator=normalize_modulator,
-                                                              full_kan=full_kan, degree=degree, dropout=dropout,
-                                                              norm_layer=norm_layer, **norm_kwargs)
+        super(BottleNeckKAGNFocalModulation3D, self).__init__(
+            input_dim,
+            BottleNeckKAGNConv3DLayer,
+            focal_norm_layer,
+            focal_window,
+            focal_level,
+            focal_factor=focal_factor,
+            use_postln_in_modulation=use_postln_in_modulation,
+            normalize_modulator=normalize_modulator,
+            full_kan=full_kan,
+            degree=degree,
+            dropout=dropout,
+            norm_layer=norm_layer,
+            **norm_kwargs
+        )
