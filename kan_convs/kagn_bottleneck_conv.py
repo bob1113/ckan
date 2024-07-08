@@ -6,16 +6,31 @@ import torch.nn as nn
 from torch.distributions.normal import Normal
 from torch.nn.functional import conv3d, conv2d, conv1d
 
-from utils import NoiseInjection
+from ..utils import NoiseInjection
 from .moe_utils import SparseDispatcher
-from kans import GRAMLayer
+from ..kans import GRAMLayer
 
 
 class BottleNeckKAGNConvNDLayer(nn.Module):
-    def __init__(self, conv_class, norm_class, conv_w_fun, input_dim, output_dim, degree, kernel_size,
-                 groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, ndim: int = 2.,
-                 dim_reduction: float = 4, min_internal: int = 16,
-                 **norm_kwargs):
+    def __init__(
+        self,
+        conv_class,
+        norm_class,
+        conv_w_fun,
+        input_dim,
+        output_dim,
+        degree,
+        kernel_size,
+        groups=1,
+        padding=0,
+        stride=1,
+        dilation=1,
+        dropout: float = 0.0,
+        ndim: int = 2.0,
+        dim_reduction: float = 4,
+        min_internal: int = 16,
+        **norm_kwargs
+    ):
         super(BottleNeckKAGNConvNDLayer, self).__init__()
         self.inputdim = input_dim
         self.outdim = output_dim
@@ -32,8 +47,7 @@ class BottleNeckKAGNConvNDLayer(nn.Module):
         self.norm_kwargs = norm_kwargs
         self.p_dropout = dropout
 
-        inner_dim = int(max((input_dim // groups) / dim_reduction,
-                            (output_dim // groups) / dim_reduction))
+        inner_dim = int(max((input_dim // groups) / dim_reduction, (output_dim // groups) / dim_reduction))
         if inner_dim < min_internal:
             self.inner_dim = min(min_internal, input_dim // groups, output_dim // groups)
         else:
@@ -48,35 +62,13 @@ class BottleNeckKAGNConvNDLayer(nn.Module):
         if output_dim % groups != 0:
             raise ValueError('output_dim must be divisible by groups')
 
-        self.base_conv = nn.ModuleList([conv_class(input_dim // groups,
-                                                   output_dim // groups,
-                                                   kernel_size,
-                                                   stride,
-                                                   padding,
-                                                   dilation,
-                                                   groups=1,
-                                                   bias=False) for _ in range(groups)])
-        self.inner_proj = nn.ModuleList([conv_class(input_dim // groups,
-                                                    self.inner_dim,
-                                                    1,
-                                                    1,
-                                                    0,
-                                                    1,
-                                                    groups=1,
-                                                    bias=False) for _ in range(groups)])
-        self.out_proj = nn.ModuleList([conv_class(self.inner_dim,
-                                                  output_dim // groups,
-                                                  1,
-                                                  1,
-                                                  0,
-                                                  1,
-                                                  groups=1,
-                                                  bias=False) for _ in range(groups)])
+        self.base_conv = nn.ModuleList([conv_class(input_dim // groups, output_dim // groups, kernel_size, stride, padding, dilation, groups=1, bias=False) for _ in range(groups)])
+        self.inner_proj = nn.ModuleList([conv_class(input_dim // groups, self.inner_dim, 1, 1, 0, 1, groups=1, bias=False) for _ in range(groups)])
+        self.out_proj = nn.ModuleList([conv_class(self.inner_dim, output_dim // groups, 1, 1, 0, 1, groups=1, bias=False) for _ in range(groups)])
 
         self.layer_norm = nn.ModuleList([norm_class(output_dim // groups, **norm_kwargs) for _ in range(groups)])
 
-        poly_shape = (groups, self.inner_dim, self.inner_dim * (degree + 1)) + tuple(
-            kernel_size for _ in range(ndim))
+        poly_shape = (groups, self.inner_dim, self.inner_dim * (degree + 1)) + tuple(kernel_size for _ in range(ndim))
 
         self.poly_weights = nn.Parameter(torch.randn(*poly_shape))
         self.beta_weights = nn.Parameter(torch.zeros(degree + 1, dtype=torch.float32))
@@ -93,13 +85,11 @@ class BottleNeckKAGNConvNDLayer(nn.Module):
         nn.init.normal_(
             self.beta_weights,
             mean=0.0,
-            std=1.0 / ((kernel_size ** ndim) * self.inputdim * (self.degree + 1.0)),
+            std=1.0 / ((kernel_size**ndim) * self.inputdim * (self.degree + 1.0)),
         )
 
     def beta(self, n, m):
-        return (
-                       ((m + n) * (m - n) * n ** 2) / (m ** 2 / (4.0 * n ** 2 - 1.0))
-               ) * self.beta_weights[n]
+        return (((m + n) * (m - n) * n**2) / (m**2 / (4.0 * n**2 - 1.0))) * self.beta_weights[n]
 
     @lru_cache(maxsize=128)  # Cache to avoid recomputation of Gram polynomials
     def gram_poly(self, x, degree):
@@ -132,9 +122,7 @@ class BottleNeckKAGNConvNDLayer(nn.Module):
 
         grams_basis = self.base_activation(self.gram_poly(x, self.degree))
 
-        y = self.conv_w_fun(grams_basis, self.poly_weights[group_index],
-                            stride=self.stride, dilation=self.dilation,
-                            padding=self.padding, groups=1)
+        y = self.conv_w_fun(grams_basis, self.poly_weights[group_index], stride=self.stride, dilation=self.dilation, padding=self.padding, groups=1)
         y = self.out_proj[group_index](y)
 
         y = self.base_activation(self.layer_norm[group_index](y + basis))
@@ -153,41 +141,76 @@ class BottleNeckKAGNConvNDLayer(nn.Module):
 
 
 class BottleNeckKAGNConv3DLayer(BottleNeckKAGNConvNDLayer):
-    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0, norm_layer=nn.InstanceNorm3d, dim_reduction: float = 4, **norm_kwargs):
-        super(BottleNeckKAGNConv3DLayer, self).__init__(nn.Conv3d, norm_layer, conv3d,
-                                                        input_dim, output_dim,
-                                                        degree, kernel_size, dim_reduction=dim_reduction,
-                                                        groups=groups, padding=padding, stride=stride,
-                                                        dilation=dilation,
-                                                        ndim=3, dropout=dropout, **norm_kwargs)
+    def __init__(
+        self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.InstanceNorm3d, dim_reduction: float = 4, **norm_kwargs
+    ):
+        super(BottleNeckKAGNConv3DLayer, self).__init__(
+            nn.Conv3d,
+            norm_layer,
+            conv3d,
+            input_dim,
+            output_dim,
+            degree,
+            kernel_size,
+            dim_reduction=dim_reduction,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            ndim=3,
+            dropout=dropout,
+            **norm_kwargs
+        )
 
 
 class BottleNeckKAGNConv2DLayer(BottleNeckKAGNConvNDLayer):
-    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0, norm_layer=nn.InstanceNorm2d, dim_reduction: float = 4, **norm_kwargs):
-        super(BottleNeckKAGNConv2DLayer, self).__init__(nn.Conv2d, norm_layer, conv2d,
-                                                        input_dim, output_dim,
-                                                        degree, kernel_size, dim_reduction=dim_reduction,
-                                                        groups=groups, padding=padding, stride=stride,
-                                                        dilation=dilation,
-                                                        ndim=2, dropout=dropout, **norm_kwargs)
+    def __init__(
+        self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.InstanceNorm2d, dim_reduction: float = 4, **norm_kwargs
+    ):
+        super(BottleNeckKAGNConv2DLayer, self).__init__(
+            nn.Conv2d,
+            norm_layer,
+            conv2d,
+            input_dim,
+            output_dim,
+            degree,
+            kernel_size,
+            dim_reduction=dim_reduction,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            ndim=2,
+            dropout=dropout,
+            **norm_kwargs
+        )
 
 
 class BottleNeckKAGNConv1DLayer(BottleNeckKAGNConvNDLayer):
-    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0, norm_layer=nn.InstanceNorm1d, dim_reduction: float = 4, **norm_kwargs):
-        super(BottleNeckKAGNConv1DLayer, self).__init__(nn.Conv1d, norm_layer, conv1d,
-                                                        input_dim, output_dim,
-                                                        degree, kernel_size, dim_reduction=dim_reduction,
-                                                        groups=groups, padding=padding, stride=stride,
-                                                        dilation=dilation,
-                                                        ndim=1, dropout=dropout, **norm_kwargs)
+    def __init__(
+        self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.InstanceNorm1d, dim_reduction: float = 4, **norm_kwargs
+    ):
+        super(BottleNeckKAGNConv1DLayer, self).__init__(
+            nn.Conv1d,
+            norm_layer,
+            conv1d,
+            input_dim,
+            output_dim,
+            degree,
+            kernel_size,
+            dim_reduction=dim_reduction,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            ndim=1,
+            dropout=dropout,
+            **norm_kwargs
+        )
 
 
 class KAGNExpert(nn.Module):
-    def __init__(self, conv_w_fun, input_dim, output_dim, degree, kernel_size,
-                 groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, ndim: int = 2.):
+    def __init__(self, conv_w_fun, input_dim, output_dim, degree, kernel_size, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, ndim: int = 2.0):
         super(KAGNExpert, self).__init__()
         self.inputdim = input_dim
         self.outdim = output_dim
@@ -213,8 +236,7 @@ class KAGNExpert(nn.Module):
         if output_dim % groups != 0:
             raise ValueError('output_dim must be divisible by groups')
 
-        poly_shape = (groups, self.outdim // groups, self.inputdim * (degree + 1) // groups) + tuple(
-            kernel_size for _ in range(ndim))
+        poly_shape = (groups, self.outdim // groups, self.inputdim * (degree + 1) // groups) + tuple(kernel_size for _ in range(ndim))
 
         self.poly_weights = nn.Parameter(torch.randn(*poly_shape))
         self.beta_weights = nn.Parameter(torch.zeros(degree + 1, dtype=torch.float32))
@@ -223,13 +245,11 @@ class KAGNExpert(nn.Module):
         nn.init.normal_(
             self.beta_weights,
             mean=0.0,
-            std=1.0 / ((kernel_size ** ndim) * self.inputdim * (self.degree + 1.0)),
+            std=1.0 / ((kernel_size**ndim) * self.inputdim * (self.degree + 1.0)),
         )
 
     def beta(self, n, m):
-        return (
-                       ((m + n) * (m - n) * n ** 2) / (m ** 2 / (4.0 * n ** 2 - 1.0))
-               ) * self.beta_weights[n]
+        return (((m + n) * (m - n) * n**2) / (m**2 / (4.0 * n**2 - 1.0))) * self.beta_weights[n]
 
     @lru_cache(maxsize=128)  # Cache to avoid recomputation of Gram polynomials
     def gram_poly(self, x, degree):
@@ -257,9 +277,7 @@ class KAGNExpert(nn.Module):
         if self.dropout is not None:
             grams_basis = self.dropout(grams_basis)
 
-        y = self.conv_w_fun(grams_basis, self.poly_weights[group_index],
-                            stride=self.stride, dilation=self.dilation,
-                            padding=self.padding, groups=1)
+        y = self.conv_w_fun(grams_basis, self.poly_weights[group_index], stride=self.stride, dilation=self.dilation, padding=self.padding, groups=1)
 
         return y
 
@@ -284,9 +302,24 @@ class KAGNMoE(nn.Module):
     k: an integer - how many experts to use for each batch element
     """
 
-    def __init__(self, num_experts, conv_w_fun, input_dim, output_dim, degree, kernel_size,
-                 groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, ndim: int = 2.,
-                 noisy_gating=True, k=4, pregate: bool = False):
+    def __init__(
+        self,
+        num_experts,
+        conv_w_fun,
+        input_dim,
+        output_dim,
+        degree,
+        kernel_size,
+        groups=1,
+        padding=0,
+        stride=1,
+        dilation=1,
+        dropout: float = 0.0,
+        ndim: int = 2.0,
+        noisy_gating=True,
+        k=4,
+        pregate: bool = False,
+    ):
         super(KAGNMoE, self).__init__()
         self.noisy_gating = noisy_gating
         self.num_experts = num_experts
@@ -294,10 +327,12 @@ class KAGNMoE(nn.Module):
         self.input_size = input_dim
         self.k = k
         # instantiate experts
-        self.experts = nn.ModuleList([KAGNExpert(conv_w_fun, input_dim, output_dim, degree, kernel_size,
-                                                 groups=groups, padding=padding, stride=stride, dilation=dilation,
-                                                 dropout=dropout, ndim=ndim)
-                                      for _ in range(self.num_experts)])
+        self.experts = nn.ModuleList(
+            [
+                KAGNExpert(conv_w_fun, input_dim, output_dim, degree, kernel_size, groups=groups, padding=padding, stride=stride, dilation=dilation, dropout=dropout, ndim=ndim)
+                for _ in range(self.num_experts)
+            ]
+        )
         self.w_gate = nn.Parameter(torch.zeros(input_dim, num_experts), requires_grad=True)
         self.w_noise = nn.Parameter(torch.zeros(input_dim, num_experts), requires_grad=True)
 
@@ -318,7 +353,7 @@ class KAGNMoE(nn.Module):
         elif ndim == 3:
             self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
             self.conv_dims = 3
-        assert (self.k <= self.num_experts)
+        assert self.k <= self.num_experts
 
     def cv_squared(self, x):
         """The squared coefficient of variation of a sample.
@@ -382,19 +417,19 @@ class KAGNMoE(nn.Module):
 
     def noisy_top_k_gating(self, x, train, noise_epsilon=1e-2):
         """Noisy top-k gating.
-          See paper: https://arxiv.org/abs/1701.06538.
-          Args:
-            x: input Tensor with shape [batch_size, input_size]
-            train: a boolean - we only add noise at training time.
-            noise_epsilon: a float
-          Returns:
-            gates: a Tensor with shape [batch_size, num_experts]
-            load: a Tensor with shape [num_experts]
+        See paper: https://arxiv.org/abs/1701.06538.
+        Args:
+          x: input Tensor with shape [batch_size, input_size]
+          train: a boolean - we only add noise at training time.
+          noise_epsilon: a float
+        Returns:
+          gates: a Tensor with shape [batch_size, num_experts]
+          load: a Tensor with shape [num_experts]
         """
         clean_logits = x @ self.w_gate
         if self.noisy_gating and train:
             raw_noise_stddev = x @ self.w_noise
-            noise_stddev = ((self.softplus(raw_noise_stddev) + noise_epsilon))
+            noise_stddev = self.softplus(raw_noise_stddev) + noise_epsilon
             noisy_logits = clean_logits + (torch.randn_like(clean_logits) * noise_stddev)
             logits = noisy_logits
         else:
@@ -403,8 +438,8 @@ class KAGNMoE(nn.Module):
         # calculate topk + 1 that will be needed for the noisy gates
         logits = self.softmax(logits)
         top_logits, top_indices = logits.topk(min(self.k + 1, self.num_experts), dim=1)
-        top_k_logits = top_logits[:, :self.k]
-        top_k_indices = top_indices[:, :self.k]
+        top_k_logits = top_logits[:, : self.k]
+        top_k_indices = top_indices[:, : self.k]
         top_k_gates = top_k_logits / (top_k_logits.sum(1, keepdim=True) + 1e-6)  # normalization
 
         zeros = torch.zeros_like(logits, requires_grad=True)
@@ -457,10 +492,29 @@ class MoEBottleNeckKAGNConvND(nn.Module):
     k: an integer - how many experts to use for each batch element
     """
 
-    def __init__(self, conv_class, conv_w_fun, norm_class, input_dim, output_dim, num_experts=16,
-                 noisy_gating=True, k=4, kernel_size=3, stride=1, padding=1, degree=3, groups=1, dilation=1,
-                 dropout: float = 0.0, ndim: int = 2., dim_reduction: float = 4, min_internal: int = 16,
-                 pregate: bool = False, **norm_kwargs):
+    def __init__(
+        self,
+        conv_class,
+        conv_w_fun,
+        norm_class,
+        input_dim,
+        output_dim,
+        num_experts=16,
+        noisy_gating=True,
+        k=4,
+        kernel_size=3,
+        stride=1,
+        padding=1,
+        degree=3,
+        groups=1,
+        dilation=1,
+        dropout: float = 0.0,
+        ndim: int = 2.0,
+        dim_reduction: float = 4,
+        min_internal: int = 16,
+        pregate: bool = False,
+        **norm_kwargs
+    ):
         super(MoEBottleNeckKAGNConvND, self).__init__()
         self.noisy_gating = noisy_gating
         self.num_experts = num_experts
@@ -470,41 +524,32 @@ class MoEBottleNeckKAGNConvND(nn.Module):
         self.groups = groups
         self.base_activation = nn.SiLU()
         # instantiate experts
-        inner_dim = int(max((input_dim // groups) / dim_reduction,
-                            (output_dim // groups) / dim_reduction))
+        inner_dim = int(max((input_dim // groups) / dim_reduction, (output_dim // groups) / dim_reduction))
         if inner_dim < min_internal:
             self.inner_dim = min(min_internal, input_dim // groups, output_dim // groups)
         else:
             self.inner_dim = inner_dim
 
-        self.experts = KAGNMoE(num_experts, conv_w_fun, self.inner_dim * groups, self.inner_dim * groups,
-                               degree, kernel_size=kernel_size,
-                               groups=groups, padding=padding, stride=stride, dilation=dilation,
-                               dropout=dropout, ndim=ndim, noisy_gating=noisy_gating, k=k, pregate=pregate)
-        self.base_conv = nn.ModuleList([conv_class(input_dim // groups,
-                                                   output_dim // groups,
-                                                   kernel_size,
-                                                   stride,
-                                                   padding,
-                                                   dilation,
-                                                   groups=1,
-                                                   bias=False) for _ in range(groups)])
-        self.inner_proj = nn.ModuleList([conv_class(input_dim // groups,
-                                                    self.inner_dim,
-                                                    1,
-                                                    1,
-                                                    0,
-                                                    1,
-                                                    groups=1,
-                                                    bias=False) for _ in range(groups)])
-        self.out_proj = nn.ModuleList([conv_class(self.inner_dim,
-                                                  output_dim // groups,
-                                                  1,
-                                                  1,
-                                                  0,
-                                                  1,
-                                                  groups=1,
-                                                  bias=False) for _ in range(groups)])
+        self.experts = KAGNMoE(
+            num_experts,
+            conv_w_fun,
+            self.inner_dim * groups,
+            self.inner_dim * groups,
+            degree,
+            kernel_size=kernel_size,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            dropout=dropout,
+            ndim=ndim,
+            noisy_gating=noisy_gating,
+            k=k,
+            pregate=pregate,
+        )
+        self.base_conv = nn.ModuleList([conv_class(input_dim // groups, output_dim // groups, kernel_size, stride, padding, dilation, groups=1, bias=False) for _ in range(groups)])
+        self.inner_proj = nn.ModuleList([conv_class(input_dim // groups, self.inner_dim, 1, 1, 0, 1, groups=1, bias=False) for _ in range(groups)])
+        self.out_proj = nn.ModuleList([conv_class(self.inner_dim, output_dim // groups, 1, 1, 0, 1, groups=1, bias=False) for _ in range(groups)])
 
         self.layer_norm = nn.ModuleList([norm_class(output_dim // groups, **norm_kwargs) for _ in range(groups)])
 
@@ -532,7 +577,7 @@ class MoEBottleNeckKAGNConvND(nn.Module):
             self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
             self.conv_dims = 3
 
-        assert (self.k <= self.num_experts)
+        assert self.k <= self.num_experts
 
     def forward_moe_base(self, x, group_index):
 
@@ -576,42 +621,129 @@ class MoEBottleNeckKAGNConvND(nn.Module):
 
 
 class MoEBottleNeckKAGNConv3DLayer(MoEBottleNeckKAGNConvND):
-    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0, norm_layer=nn.InstanceNorm3d, dim_reduction: float = 4, num_experts=16,
-                 noisy_gating=True, k=4, pregate: bool = False, **norm_kwargs):
-        super(MoEBottleNeckKAGNConv3DLayer, self).__init__(nn.Conv3d, conv3d, norm_layer,
-                                                           input_dim, output_dim,
-                                                           degree=degree, kernel_size=kernel_size,
-                                                           dim_reduction=dim_reduction,
-                                                           groups=groups, padding=padding, stride=stride,
-                                                           dilation=dilation, num_experts=num_experts,
-                                                           noisy_gating=noisy_gating, k=k, pregate=pregate,
-                                                           ndim=3, dropout=dropout, **norm_kwargs)
+    def __init__(
+        self,
+        input_dim,
+        output_dim,
+        kernel_size,
+        degree=3,
+        groups=1,
+        padding=0,
+        stride=1,
+        dilation=1,
+        dropout: float = 0.0,
+        norm_layer=nn.InstanceNorm3d,
+        dim_reduction: float = 4,
+        num_experts=16,
+        noisy_gating=True,
+        k=4,
+        pregate: bool = False,
+        **norm_kwargs
+    ):
+        super(MoEBottleNeckKAGNConv3DLayer, self).__init__(
+            nn.Conv3d,
+            conv3d,
+            norm_layer,
+            input_dim,
+            output_dim,
+            degree=degree,
+            kernel_size=kernel_size,
+            dim_reduction=dim_reduction,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            num_experts=num_experts,
+            noisy_gating=noisy_gating,
+            k=k,
+            pregate=pregate,
+            ndim=3,
+            dropout=dropout,
+            **norm_kwargs
+        )
 
 
 class MoEBottleNeckKAGNConv2DLayer(MoEBottleNeckKAGNConvND):
-    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0, norm_layer=nn.InstanceNorm2d, num_experts=8,
-                 noisy_gating=True, k=2, dim_reduction: float = 4, pregate: bool = False, **norm_kwargs):
-        super(MoEBottleNeckKAGNConv2DLayer, self).__init__(nn.Conv2d, conv2d, norm_layer,
-                                                           input_dim, output_dim,
-                                                           degree=degree, kernel_size=kernel_size,
-                                                           dim_reduction=dim_reduction,
-                                                           groups=groups, padding=padding, stride=stride,
-                                                           dilation=dilation, num_experts=num_experts,
-                                                           noisy_gating=noisy_gating, k=k, pregate=pregate,
-                                                           ndim=2, dropout=dropout, **norm_kwargs)
+    def __init__(
+        self,
+        input_dim,
+        output_dim,
+        kernel_size,
+        degree=3,
+        groups=1,
+        padding=0,
+        stride=1,
+        dilation=1,
+        dropout: float = 0.0,
+        norm_layer=nn.InstanceNorm2d,
+        num_experts=8,
+        noisy_gating=True,
+        k=2,
+        dim_reduction: float = 4,
+        pregate: bool = False,
+        **norm_kwargs
+    ):
+        super(MoEBottleNeckKAGNConv2DLayer, self).__init__(
+            nn.Conv2d,
+            conv2d,
+            norm_layer,
+            input_dim,
+            output_dim,
+            degree=degree,
+            kernel_size=kernel_size,
+            dim_reduction=dim_reduction,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            num_experts=num_experts,
+            noisy_gating=noisy_gating,
+            k=k,
+            pregate=pregate,
+            ndim=2,
+            dropout=dropout,
+            **norm_kwargs
+        )
 
 
 class MoEBottleNeckKAGNConv1DLayer(MoEBottleNeckKAGNConvND):
-    def __init__(self, input_dim, output_dim, kernel_size, degree=3, groups=1, padding=0, stride=1, dilation=1,
-                 dropout: float = 0.0, norm_layer=nn.InstanceNorm1d, num_experts=16,
-                 noisy_gating=True, k=4, dim_reduction: float = 4, pregate: bool = False, **norm_kwargs):
-        super(MoEBottleNeckKAGNConv1DLayer, self).__init__(nn.Conv1d, conv1d, norm_layer,
-                                                           input_dim, output_dim,
-                                                           degree=degree, kernel_size=kernel_size,
-                                                           dim_reduction=dim_reduction,
-                                                           groups=groups, padding=padding, stride=stride,
-                                                           dilation=dilation, num_experts=num_experts,
-                                                           noisy_gating=noisy_gating, k=k, pregate=pregate,
-                                                           ndim=1, dropout=dropout, **norm_kwargs)
+    def __init__(
+        self,
+        input_dim,
+        output_dim,
+        kernel_size,
+        degree=3,
+        groups=1,
+        padding=0,
+        stride=1,
+        dilation=1,
+        dropout: float = 0.0,
+        norm_layer=nn.InstanceNorm1d,
+        num_experts=16,
+        noisy_gating=True,
+        k=4,
+        dim_reduction: float = 4,
+        pregate: bool = False,
+        **norm_kwargs
+    ):
+        super(MoEBottleNeckKAGNConv1DLayer, self).__init__(
+            nn.Conv1d,
+            conv1d,
+            norm_layer,
+            input_dim,
+            output_dim,
+            degree=degree,
+            kernel_size=kernel_size,
+            dim_reduction=dim_reduction,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            num_experts=num_experts,
+            noisy_gating=noisy_gating,
+            k=k,
+            pregate=pregate,
+            ndim=1,
+            dropout=dropout,
+            **norm_kwargs
+        )

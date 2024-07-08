@@ -6,10 +6,27 @@ from torch.nn.functional import conv3d, conv2d, conv1d
 
 
 class BottleNeckReLUConvNDLayer(nn.Module):
-    def __init__(self, conv_class, norm_class, conv_w_fun, input_dim, output_dim, kernel_size, g: int = 5, k: int = 3,
-                 groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, ndim: int = 2., train_ab: bool = True,
-                 dim_reduction: float = 4, min_internal: int = 16,
-                 **norm_kwargs):
+    def __init__(
+        self,
+        conv_class,
+        norm_class,
+        conv_w_fun,
+        input_dim,
+        output_dim,
+        kernel_size,
+        g: int = 5,
+        k: int = 3,
+        groups=1,
+        padding=0,
+        stride=1,
+        dilation=1,
+        dropout: float = 0.0,
+        ndim: int = 2.0,
+        train_ab: bool = True,
+        dim_reduction: float = 4,
+        min_internal: int = 16,
+        **norm_kwargs
+    ):
         super(BottleNeckReLUConvNDLayer, self).__init__()
         self.inputdim = input_dim
         self.outdim = output_dim
@@ -31,8 +48,7 @@ class BottleNeckReLUConvNDLayer(nn.Module):
         self.dim_reduction = dim_reduction
         self.min_internal = min_internal
 
-        inner_dim = int(max((input_dim // groups) / dim_reduction,
-                            (output_dim // groups) / dim_reduction))
+        inner_dim = int(max((input_dim // groups) / dim_reduction, (output_dim // groups) / dim_reduction))
         if inner_dim < min_internal:
             self.inner_dim = min(min_internal, input_dim // groups, output_dim // groups)
         else:
@@ -53,52 +69,21 @@ class BottleNeckReLUConvNDLayer(nn.Module):
         if output_dim % groups != 0:
             raise ValueError('output_dim must be divisible by groups')
 
-        self.base_conv = nn.ModuleList([conv_class(input_dim // groups,
-                                                   output_dim // groups,
-                                                   kernel_size,
-                                                   stride,
-                                                   padding,
-                                                   dilation,
-                                                   groups=1,
-                                                   bias=False) for _ in range(groups)])
+        self.base_conv = nn.ModuleList([conv_class(input_dim // groups, output_dim // groups, kernel_size, stride, padding, dilation, groups=1, bias=False) for _ in range(groups)])
 
-        self.relukan_conv = nn.ModuleList([conv_class((self.g + self.k) * self.inner_dim,
-                                                      self.inner_dim,
-                                                      kernel_size,
-                                                      stride,
-                                                      padding,
-                                                      dilation,
-                                                      groups=1,
-                                                      bias=False) for _ in range(groups)])
+        self.relukan_conv = nn.ModuleList([conv_class((self.g + self.k) * self.inner_dim, self.inner_dim, kernel_size, stride, padding, dilation, groups=1, bias=False) for _ in range(groups)])
 
-        self.inner_proj = nn.ModuleList([conv_class(input_dim // groups,
-                                                    self.inner_dim,
-                                                    1,
-                                                    1,
-                                                    0,
-                                                    1,
-                                                    groups=1,
-                                                    bias=False) for _ in range(groups)])
-        self.out_proj = nn.ModuleList([conv_class(self.inner_dim,
-                                                  output_dim // groups,
-                                                  1,
-                                                  1,
-                                                  0,
-                                                  1,
-                                                  groups=1,
-                                                  bias=False) for _ in range(groups)])
+        self.inner_proj = nn.ModuleList([conv_class(input_dim // groups, self.inner_dim, 1, 1, 0, 1, groups=1, bias=False) for _ in range(groups)])
+        self.out_proj = nn.ModuleList([conv_class(self.inner_dim, output_dim // groups, 1, 1, 0, 1, groups=1, bias=False) for _ in range(groups)])
 
         phase_low = torch.arange(-k, g) / g
         phase_high = phase_low + (k + 1) / g
 
         phase_dims = (1, self.inner_dim, k + g) + (1,) * ndim
 
-        self.phase_low = nn.Parameter((phase_low[None, :].expand(self.inner_dim, -1)).view(*phase_dims),
-                                      requires_grad=train_ab)
+        self.phase_low = nn.Parameter((phase_low[None, :].expand(self.inner_dim, -1)).view(*phase_dims), requires_grad=train_ab)
 
-        self.phase_high = nn.Parameter(
-            (phase_high[None, :].expand(self.inner_dim, -1)).view(*phase_dims),
-            requires_grad=train_ab)
+        self.phase_high = nn.Parameter((phase_high[None, :].expand(self.inner_dim, -1)).view(*phase_dims), requires_grad=train_ab)
 
         self.layer_norm = nn.ModuleList([norm_class(output_dim // groups, **norm_kwargs) for _ in range(groups)])
 
@@ -144,36 +129,66 @@ class BottleNeckReLUConvNDLayer(nn.Module):
 
 
 class BottleNeckReLUKANConv3DLayer(BottleNeckReLUConvNDLayer):
-    def __init__(self, input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1,
-                 dilation=1,
-                 dropout: float = 0.0, norm_layer=nn.InstanceNorm3d, **norm_kwargs):
-        super(BottleNeckReLUKANConv3DLayer, self).__init__(nn.Conv3d, norm_layer, conv3d,
-                                                           input_dim, output_dim,
-                                                           kernel_size, g=g, k=k, train_ab=train_ab,
-                                                           groups=groups, padding=padding, stride=stride,
-                                                           dilation=dilation,
-                                                           ndim=3, dropout=dropout, **norm_kwargs)
+    def __init__(self, input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.InstanceNorm3d, **norm_kwargs):
+        super(BottleNeckReLUKANConv3DLayer, self).__init__(
+            nn.Conv3d,
+            norm_layer,
+            conv3d,
+            input_dim,
+            output_dim,
+            kernel_size,
+            g=g,
+            k=k,
+            train_ab=train_ab,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            ndim=3,
+            dropout=dropout,
+            **norm_kwargs
+        )
 
 
 class BottleNeckReLUKANConv2DLayer(BottleNeckReLUConvNDLayer):
-    def __init__(self, input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1,
-                 dilation=1,
-                 dropout: float = 0.0, norm_layer=nn.InstanceNorm2d, **norm_kwargs):
-        super(BottleNeckReLUKANConv2DLayer, self).__init__(nn.Conv2d, norm_layer, conv2d,
-                                                           input_dim, output_dim,
-                                                           kernel_size, g=g, k=k, train_ab=train_ab,
-                                                           groups=groups, padding=padding, stride=stride,
-                                                           dilation=dilation,
-                                                           ndim=2, dropout=dropout, **norm_kwargs)
+    def __init__(self, input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.InstanceNorm2d, **norm_kwargs):
+        super(BottleNeckReLUKANConv2DLayer, self).__init__(
+            nn.Conv2d,
+            norm_layer,
+            conv2d,
+            input_dim,
+            output_dim,
+            kernel_size,
+            g=g,
+            k=k,
+            train_ab=train_ab,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            ndim=2,
+            dropout=dropout,
+            **norm_kwargs
+        )
 
 
 class BottleNeckReLUKANConv1DLayer(BottleNeckReLUConvNDLayer):
-    def __init__(self, input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1,
-                 dilation=1,
-                 dropout: float = 0.0, norm_layer=nn.InstanceNorm1d, **norm_kwargs):
-        super(BottleNeckReLUKANConv1DLayer, self).__init__(nn.Conv1d, norm_layer, conv1d,
-                                                           input_dim, output_dim,
-                                                           kernel_size, g=g, k=k, train_ab=train_ab,
-                                                           groups=groups, padding=padding, stride=stride,
-                                                           dilation=dilation,
-                                                           ndim=1, dropout=dropout, **norm_kwargs)
+    def __init__(self, input_dim, output_dim, kernel_size, g=5, k=3, train_ab=True, groups=1, padding=0, stride=1, dilation=1, dropout: float = 0.0, norm_layer=nn.InstanceNorm1d, **norm_kwargs):
+        super(BottleNeckReLUKANConv1DLayer, self).__init__(
+            nn.Conv1d,
+            norm_layer,
+            conv1d,
+            input_dim,
+            output_dim,
+            kernel_size,
+            g=g,
+            k=k,
+            train_ab=train_ab,
+            groups=groups,
+            padding=padding,
+            stride=stride,
+            dilation=dilation,
+            ndim=1,
+            dropout=dropout,
+            **norm_kwargs
+        )
